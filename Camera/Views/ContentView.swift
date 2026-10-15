@@ -30,6 +30,10 @@ struct ContentView: View {
                 .animation(.easeInOut(duration: 0.2), value: model.bannerText)
                 .animation(.easeInOut(duration: 0.2), value: model.isFilterStripVisible)
 
+                if case .counting(let remaining) = model.countdown.phase {
+                    CountdownOverlayView(remaining: remaining)
+                }
+
                 Color.white
                     .opacity(model.flashOpacity)
                     .allowsHitTesting(false)
@@ -38,6 +42,7 @@ struct ContentView: View {
         .frame(minWidth: 640, minHeight: 480)
         .ignoresSafeArea()
         .task { await model.start() }
+        .onDisappear { model.viewDidDisappear() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             model.appDidBecomeActive()
         }
@@ -45,21 +50,29 @@ struct ContentView: View {
 
     private var controls: some View {
         ZStack {
-            ShutterButtonView(isEnabled: model.canCapture, action: model.handleShutterTap)
+            ShutterButtonView(isEnabled: model.canCapture, isCountingDown: model.countdown.isCounting,
+                              action: model.handleShutterTap)
 
             HStack {
                 LastCaptureThumbnailView(image: model.lastThumbnail, action: model.revealLastPhoto)
                 Spacer()
                 HStack(spacing: 12) {
-                    Button(action: model.toggleFilterStrip) {
-                        Image(systemName: "camera.filters")
-                            .font(.title3)
-                            .foregroundStyle(model.isFilterStripVisible ? Color.yellow : .white)
-                            .frame(width: 44, height: 44)
-                            .background(.black.opacity(0.4), in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .help("Filters")
+                    RoundIconButton(
+                        systemName: model.isFlashEnabled ? "bolt.fill" : "bolt.slash.fill",
+                        isOn: model.isFlashEnabled,
+                        help: model.isFlashEnabled ? "Screen flash on" : "Screen flash off",
+                        action: model.toggleFlash)
+                    RoundIconButton(
+                        systemName: "timer",
+                        isOn: model.countdown.duration != .off,
+                        badge: model.countdown.duration == .off ? nil : model.countdown.duration.label,
+                        help: "Timer: \(model.countdown.duration.label)",
+                        action: model.cycleTimer)
+                    RoundIconButton(
+                        systemName: "camera.filters",
+                        isOn: model.isFilterStripVisible,
+                        help: "Filters",
+                        action: model.toggleFilterStrip)
                     CameraPickerView(
                         devices: model.discovery.devices,
                         selection: model.selectedDeviceID,

@@ -7,6 +7,8 @@ final class SessionMonitor {
     private(set) var message: String?
     /// Asked to restart the session after a runtime error.
     @ObservationIgnored var onRuntimeError: (() -> Void)?
+    /// Called when the camera is taken away (interruption or error).
+    @ObservationIgnored var onInterruption: (() -> Void)?
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
     init(session: AVCaptureSession) {
@@ -15,7 +17,10 @@ final class SessionMonitor {
         observers.append(center.addObserver(forName: AVCaptureSession.wasInterruptedNotification,
                                             object: session, queue: .main) { [weak self] _ in
             // macOS doesn't report an interruption reason; in practice it means another app took the camera.
-            MainActor.assumeIsolated { self?.message = "Camera in use by another app" }
+            MainActor.assumeIsolated {
+                self?.message = "Camera in use by another app"
+                self?.onInterruption?()
+            }
         })
         observers.append(center.addObserver(forName: AVCaptureSession.interruptionEndedNotification,
                                             object: session, queue: .main) { [weak self] _ in
@@ -25,6 +30,7 @@ final class SessionMonitor {
                                             object: session, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.message = "Camera error. Restarting…"
+                self?.onInterruption?()
                 self?.onRuntimeError?()
             }
         })
