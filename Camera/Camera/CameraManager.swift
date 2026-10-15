@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreImage
+import Synchronization
 
 nonisolated enum CameraError: LocalizedError {
     case deviceNotFound
@@ -28,12 +29,20 @@ nonisolated final class CameraManager: NSObject, @unchecked Sendable {
     private let videoOutput = AVCaptureVideoDataOutput()
     private let photoOutput = AVCapturePhotoOutput()
     private let renderer: PreviewRenderer
+    private let thumbnailSource: FilterThumbnailSource
+    /// Written from the main actor, read on `sessionQueue` for every frame.
+    private let filter = Mutex<PhotoboothFilter>(.none)
     private var currentInput: AVCaptureDeviceInput?   // sessionQueue only
     private var outputsAdded = false                  // sessionQueue only
 
-    init(renderer: PreviewRenderer) {
+    init(renderer: PreviewRenderer, thumbnailSource: FilterThumbnailSource) {
         self.renderer = renderer
+        self.thumbnailSource = thumbnailSource
         super.init()
+    }
+
+    func setFilter(_ newFilter: PhotoboothFilter) {
+        filter.withLock { $0 = newFilter }
     }
 
     /// Starts the session on the given device, or swaps to it if already running.
@@ -130,7 +139,11 @@ nonisolated extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegat
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
                        from connection: AVCaptureConnection) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        renderer.store(CIImage(cvPixelBuffer: pixelBuffer))
+        let frame = CIImage(cvPixelBuffer: pixelBuffer)
+        thumbnailSource.submit(frame)   // raw frame; no-op unless the filter strip is visible
+        // Crop to the preview's aspect first so the filter sees the same framing as saved photos.
+        let cropped = PhotoProcessor.cropToAspect(frame, aspect: renderer.viewAspect)
+        renderer.store(filter.withLock { $0 }.apply(to: cropped))
     }
 }
 

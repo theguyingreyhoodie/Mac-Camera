@@ -8,10 +8,13 @@ final class PhotoboothViewModel {
     let renderer = PreviewRenderer()
     let permission = PermissionCoordinator()
     let discovery = CameraDeviceDiscovery()
+    let thumbnails = FilterThumbnailProvider()
     @ObservationIgnored let camera: CameraManager
     let monitor: SessionMonitor
 
     private(set) var selectedDeviceID: String?
+    private(set) var selectedFilter = PhotoboothFilter.none
+    private(set) var isFilterStripVisible = false
     private(set) var isCapturing = false
     private(set) var flashOpacity = 0.0
     private(set) var lastThumbnail: NSImage?
@@ -21,7 +24,7 @@ final class PhotoboothViewModel {
     private var started = false
 
     init() {
-        camera = CameraManager(renderer: renderer)
+        camera = CameraManager(renderer: renderer, thumbnailSource: thumbnails.source)
         monitor = SessionMonitor(session: camera.session)
 
         camera.onError = { [weak self] message in
@@ -91,6 +94,18 @@ final class PhotoboothViewModel {
         }
     }
 
+    // MARK: Filters
+
+    func select(filter: PhotoboothFilter) {
+        selectedFilter = filter
+        camera.setFilter(filter)
+    }
+
+    func toggleFilterStrip() {
+        isFilterStripVisible.toggle()
+        if isFilterStripVisible { thumbnails.start() } else { thumbnails.stop() }
+    }
+
     // MARK: Capture
 
     func handleShutterTap() {
@@ -110,6 +125,7 @@ final class PhotoboothViewModel {
             let result = try await PhotoProcessor.processAndSave(
                 data: data,
                 viewAspect: renderer.viewAspect,
+                filter: selectedFilter,
                 mirror: PhotoboothSettings.mirrorSavedPhotos)
             lastPhotoURL = result.url
             lastThumbnail = NSImage(cgImage: result.thumbnail, size: .zero)

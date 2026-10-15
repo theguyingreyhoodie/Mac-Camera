@@ -49,7 +49,7 @@ nonisolated final class PreviewRenderer: NSObject, MTKViewDelegate, @unchecked S
         let bounds = CGRect(origin: .zero, size: size)
         let output: CIImage
         if let frame = latest.withLock({ $0 }) {
-            output = Self.flippedForMetal(Self.aspectFill(frame, into: size, mirrored: true), height: size.height)
+            output = Self.aspectFill(frame, into: size, mirrored: true)
         } else {
             output = CIImage(color: .black).cropped(to: bounds)
         }
@@ -57,11 +57,6 @@ nonisolated final class PreviewRenderer: NSObject, MTKViewDelegate, @unchecked S
                                        bounds: bounds, colorSpace: RenderContext.colorSpace)
         commandBuffer.present(drawable)
         commandBuffer.commit()
-    }
-
-    /// Core Image's origin is bottom-left, Metal textures' is top-left; flip so the drawable isn't upside down.
-    static func flippedForMetal(_ image: CIImage, height: CGFloat) -> CIImage {
-        image.transformed(by: CGAffineTransform(scaleX: 1, y: -1).concatenating(CGAffineTransform(translationX: 0, y: height)))
     }
 
     /// Scales the image to cover `size` (cropping the overflow, no stretching) and centers it.

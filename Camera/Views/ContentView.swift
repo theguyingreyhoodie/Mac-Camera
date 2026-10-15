@@ -18,9 +18,17 @@ struct ContentView: View {
                             .transition(.move(edge: .top).combined(with: .opacity))
                     }
                     Spacer()
+                    if model.isFilterStripVisible {
+                        FilterStripView(
+                            thumbnails: model.thumbnails.images,
+                            selected: model.selectedFilter,
+                            onSelect: model.select(filter:))
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                     controls
                 }
                 .animation(.easeInOut(duration: 0.2), value: model.bannerText)
+                .animation(.easeInOut(duration: 0.2), value: model.isFilterStripVisible)
 
                 Color.white
                     .opacity(model.flashOpacity)
@@ -42,10 +50,21 @@ struct ContentView: View {
             HStack {
                 LastCaptureThumbnailView(image: model.lastThumbnail, action: model.revealLastPhoto)
                 Spacer()
-                CameraPickerView(
-                    devices: model.discovery.devices,
-                    selection: model.selectedDeviceID,
-                    onSelect: model.select(deviceID:))
+                HStack(spacing: 12) {
+                    Button(action: model.toggleFilterStrip) {
+                        Image(systemName: "camera.filters")
+                            .font(.title3)
+                            .foregroundStyle(model.isFilterStripVisible ? Color.yellow : .white)
+                            .frame(width: 44, height: 44)
+                            .background(.black.opacity(0.4), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Filters")
+                    CameraPickerView(
+                        devices: model.discovery.devices,
+                        selection: model.selectedDeviceID,
+                        onSelect: model.select(deviceID:))
+                }
             }
         }
         .padding(.horizontal, 24)

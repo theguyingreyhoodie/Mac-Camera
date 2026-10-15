@@ -19,14 +19,14 @@ nonisolated enum PhotoProcessor {
         let thumbnail: CGImage
     }
 
-    /// Decodes the captured photo, crops it to the preview's aspect ratio, optionally mirrors it,
+    /// Decodes the captured photo, crops it to the preview's aspect ratio, applies the filter, optionally mirrors it,
     /// encodes a JPEG and saves it to ~/Pictures/Photobooth.
     @concurrent
-    static func processAndSave(data: Data, viewAspect: CGFloat, mirror: Bool) async throws -> Result {
+    static func processAndSave(data: Data, viewAspect: CGFloat, filter: PhotoboothFilter, mirror: Bool) async throws -> Result {
         guard let decoded = CIImage(data: data, options: [.applyOrientationProperty: true]) else {
             throw PhotoProcessorError.decodeFailed
         }
-        var image = cropToAspect(decoded, aspect: viewAspect)
+        var image = filter.apply(to: cropToAspect(decoded, aspect: viewAspect))
         if mirror { image = mirrored(image) }
 
         let context = RenderContext.ciContext
